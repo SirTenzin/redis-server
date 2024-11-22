@@ -78,10 +78,53 @@ export class RESPSerializer {
         let dataType = this._detectDataType(bytes);
 
         switch(dataType) {
+            case 'Simple Strings': {
+                return [message.split("+")[1].split('\r\n')[0]];
+            };
+
+            case 'Errors': {
+                return [message.split("-")[1].split('\r\n')[0]];
+            };
+
+            case 'Arrays': {
+                let cmd = message.split("*")[1].split('\r\n');
+                console.log("cmd", cmd);
+                let cmdSize = cmd[0];
+                let data = cmd.slice(1);
+                let parsed: any = [];
+                let y = data.map((x, index) => {
+                    if(x.startsWith("$")) {
+                        let bulkString = x + "\r\n" + data[index + 1] + "\r\n";
+                        let str = this.serialize(bulkString);
+                        parsed.push(str);
+                    }
+                })
+
+                if (parsed.length !== parseInt(cmdSize)) throw new Error("Invalid Array: Length specified is not equal to the data length");
+
+                return parsed;
+            } break;
+
             case 'Bulk Strings': {
-                let data = message.split("$")[1].split('\r\n').filter((item) => item !== '');
+                let data = message.split("$")[1].split('\r\n');
                 if(this.isNull(data[0])) {
                     return [null];
+                } else {
+                    let parsed: string = "";
+                    if(data[0] === '0') return "";
+                    // console.log("Bulk String Data", data);
+                    data.forEach(x => {
+                        // If its a number, we can parse the next value
+                        if(!Number.isNaN(parseInt(x))) {
+                            // Access the next index and send it to the parsed array
+                            let nextIndex = data.indexOf(x) + 1;
+                            if(!data[nextIndex]) return;
+                            if(data[nextIndex].length !== parseInt(x)) throw new Error("Invalid Bulk String: Length specified is not equal to the data length");
+                            parsed = data[nextIndex];
+                        }
+                    })
+
+                    return parsed
                 }
             } break;
         }
@@ -90,14 +133,16 @@ export class RESPSerializer {
 
 let serializer = new RESPSerializer();
 [   
-    "$-1\r\n",
-    "*1\r\n$4\r\nping\r\n",
-    "*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n",
+    "$-1\r\n", // DONE
+    "*1\r\n$4\r\nping\r\n", // DONE
+    "*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n", // DONE
     "*2\r\n$3\r\nget\r\n$3\r\nkey\r\n",
-    "+OK\r\n",
-    "-Error message\r\n",
-    "$0\r\n\r\n",
-    "+hello world\r\n"
+    "+OK\r\n", // DONE
+    "-Error message\r\n", // DONE
+    "$0\r\n\r\n", // DONE
+    "+hello world\r\n",
+    "$4\r\nping\r\n", // DONE
+
 ].forEach((message) => {
     console.log(serializer.serialize(message));
 })
