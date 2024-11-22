@@ -1,6 +1,6 @@
-# Rust Redis Server
+# Bun Redis Server
 
-Following the challenge at [CodingChallenges](https://codingchallenges.fyi/challenges/challenge-redis), this is a simple redis server implementation in Rust.
+Following the challenge at [CodingChallenges](https://codingchallenges.fyi/challenges/challenge-redis), this is a simple redis server implementation in Bun.
 
 # Todo:
 
