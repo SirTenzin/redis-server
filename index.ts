@@ -83,12 +83,12 @@ export class RESPSerializer {
             };
 
             case 'Errors': {
-                return [message.split("-")[1].split('\r\n')[0]];
+                return [new Error(message.split("-")[1].split('\r\n')[0])];
             };
 
             case 'Arrays': {
                 let cmd = message.split("*")[1].split('\r\n');
-                console.log("cmd", cmd);
+                // console.log("cmd", cmd);
                 let cmdSize = cmd[0];
                 let data = cmd.slice(1);
                 let parsed: any = [];
@@ -120,6 +120,7 @@ export class RESPSerializer {
                             let nextIndex = data.indexOf(x) + 1;
                             if(!data[nextIndex]) return;
                             if(data[nextIndex].length !== parseInt(x)) throw new Error("Invalid Bulk String: Length specified is not equal to the data length");
+
                             parsed = data[nextIndex];
                         }
                     })
@@ -131,18 +132,78 @@ export class RESPSerializer {
     }
 }
 
-let serializer = new RESPSerializer();
-[   
-    "$-1\r\n", // DONE
-    "*1\r\n$4\r\nping\r\n", // DONE
-    "*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n", // DONE
-    "*2\r\n$3\r\nget\r\n$3\r\nkey\r\n",
-    "+OK\r\n", // DONE
-    "-Error message\r\n", // DONE
-    "$0\r\n\r\n", // DONE
-    "+hello world\r\n",
-    "$4\r\nping\r\n", // DONE
+// let serializer = new RESPSerializer();
+// [   
+//     "$-1\r\n", // DONE
+//     "*1\r\n$4\r\nping\r\n", // DONE
+//     "*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n", // DONE
+//     "*2\r\n$3\r\nget\r\n$3\r\nkey\r\n",
+//     "+OK\r\n", // DONE
+//     "-Error message\r\n", // DONE
+//     "$0\r\n\r\n", // DONE
+//     "+hello world\r\n",
+//     "$4\r\nping\r\n", // DONE
 
-].forEach((message) => {
-    console.log(serializer.serialize(message));
-})
+// ].forEach((message) => {
+//     console.log(serializer.serialize(message));
+// })
+
+
+// [ null ] = new RESPBuilder("Bulk Strings").
+
+export class RESPBuilder {
+
+    dataTypes: {
+        [key: string]: string
+    } = {
+        "Simple Strings": "+",
+        "Errors": "-",
+        "Integers": ":",
+        "Bulk Strings": "$",
+        "Arrays": "*",
+    };
+
+    dataType = "";
+    length = 0;
+    script = "";
+
+    constructor(dataType: string) {
+        if(!dataType) throw new Error("Data Type is required");
+        this.dataType = dataType;
+        if(!Object.keys(this.dataTypes).includes(dataType)) throw new Error("Invalid Data Type");
+        this.script += this.dataTypes[dataType];
+    }
+
+    setLength(length: number) {
+        if(!length) throw new Error("Length is required");
+        if(!["Bulk Strings", "Arrays"].includes(this.dataType)) throw new Error("Length can only be set for Bulk Strings and Arrays");
+        this.length = length;
+        this.script += length + "\r\n";
+        return this;
+    }
+
+    appendString(data: string) {
+        if(!data) throw new Error("Data is required");
+        if(this.dataType !== "Bulk Strings") throw new Error("Data can only be set for Bulk Strings");
+        this.script += "$" + data.length + "\r\n" + data + "\r\n";
+        return this;
+    }
+
+    setMessage(data: string) {
+        if(!data) throw new Error("Data is required");
+        if(this.dataType !== "Simple Strings") throw new Error("Data can only be set for Simple Strings");
+        this.script += data + "\r\n";
+        return this;
+    }
+
+    setError(data: string) {
+        if(!data) throw new Error("Data is required");
+        if(this.dataType !== "Errors") throw new Error("Data can only be set for Errors");
+        this.script += data + "\r\n";
+        return this;
+    }
+
+    build() {
+        return this.script;
+    }
+}
