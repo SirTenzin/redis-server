@@ -35,7 +35,7 @@ An utility class to use a chain of functions to build a RESP response. Not reall
 
 ## Getting and setting
 
-![Getting and Setting](image.png)
+![Getting and Setting](https://github.com/SirTenzin/redis-server/blob/master/image.png?raw=true)
 
 # Benchmark
 
