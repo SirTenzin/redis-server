@@ -1,10 +1,12 @@
 import { describe, it, expect } from "bun:test";
-import { RESPSerializer } from "../index";
+import { RESPEncoder, RESPSerializer } from "../index";
 
 let serializer = new RESPSerializer();
 function parseRESP(input: string): any {
     return serializer.serialize(input);
 }
+
+const encodeRESP = (input: any, explicit?: any) => new RESPEncoder().encode(input, explicit !== undefined ? explicit : undefined)
 
 describe("RESP Protocol Parsing and Encoding", () => {
     it("should correctly parse RESP bulk string $-1", () => {
@@ -56,27 +58,27 @@ describe("RESP Protocol Parsing and Encoding", () => {
         expect(output).toEqual(["hello world"]);
     });
 
-    // it("should correctly encode RESP null bulk string", () => {
-    //   const input = null;
-    //   const output = encodeRESP(input);
-    //   expect(output).toBe("$-1\r\n");
-    // });
+    it("should correctly encode RESP null bulk string", () => {
+        const input = null;
+        const output = encodeRESP(input);
+        expect(output).toBe("$-1\r\n");
+    });
 
-    // it("should correctly encode RESP simple string", () => {
-    //   const input = "OK";
-    //   const output = encodeRESP(input);
-    //   expect(output).toBe("+OK\r\n");
-    // });
+    it("should correctly encode RESP simple string", () => {
+        const input = "OK";
+        const output = encodeRESP(input);
+        expect(output).toBe("+OK\r\n");
+    });
 
-    // it("should correctly encode RESP error message", () => {
-    //   const input = new Error("Error message");
-    //   const output = encodeRESP(input);
-    //   expect(output).toBe("-Error message\r\n");
-    // });
+    it("should correctly encode RESP error message", () => {
+        const input = new Error("Error message");
+        const output = encodeRESP(input);
+        expect(output).toBe("-Error message\r\n");
+    });
 
-    // it("should correctly encode RESP array", () => {
-    //   const input = ["echo", "hello world"];
-    //   const output = encodeRESP(input);
-    //   expect(output).toBe("*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n");
-    // });
+    it("should correctly encode RESP array", () => {
+        const input = ["echo", "hello world"];
+        const output = encodeRESP(input, "*");
+        expect(output).toBe("*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n");
+    });
 });

@@ -7,38 +7,9 @@ export class RESPSerializer {
         "*": 42
     };
 
-    super() {
+    constructor() {
 
     }
-
-
-    // Step 1
-    // In this step your goal is to build the functionality to serialise and de-serialise Redis Serialisation Protocol (RESP) messages. This is the protocol used to communicate with a Redis Server. You may want to refer to the RESP protocol specification.
-
-    // Redis uses RESP as a request-response protocol in the following way:
-
-    // Clients send commands to a Redis Server as a RESP Array of Bulk Strings.
-    // The server replies with one of the RESP types according to the command implementation.
-    // In RESP, the first byte determines the data type:
-
-    // For Simple Strings, the first byte of the reply is "+"
-    // For Errors, the first byte of the reply is "-"
-    // For Integers, the first byte of the reply is ":"
-    // For Bulk Strings, the first byte of the reply is "$"
-    // For Arrays, the first byte of the reply is "*"
-    // RESP can represent a Null value using a special variation of Bulk Strings: "$-1\r\n" or Array: "*-1\r\n".
-
-    // Now that we have the basics of the protocol, your challenge is to write the code required to serialise and de-serialise messages. My personal approach to this would be to use test-driven development (TDD) to build tests for some example messages, i.e.:
-
-    // "$-1\r\n"
-    // "*1\r\n$4\r\nping\r\n”
-    // "*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n”
-    // "*2\r\n$3\r\nget\r\n$3\r\nkey\r\n”
-    // "+OK\r\n"
-    // "-Error message\r\n"
-    // "$0\r\n\r\n"
-    // "+hello world\r\n”
-    // Plus some invalid test cases to test outside the happy path.
 
     _getBytes(string: string): Uint8Array {
         return new TextEncoder().encode(string);
@@ -77,7 +48,7 @@ export class RESPSerializer {
         let bytes = this._getBytes(message);
         let dataType = this._detectDataType(bytes);
 
-        switch(dataType) {
+        switch (dataType) {
             case 'Simple Strings': {
                 return [message.split("+")[1].split('\r\n')[0]];
             };
@@ -88,12 +59,11 @@ export class RESPSerializer {
 
             case 'Arrays': {
                 let cmd = message.split("*")[1].split('\r\n');
-                // console.log("cmd", cmd);
                 let cmdSize = cmd[0];
                 let data = cmd.slice(1);
                 let parsed: any = [];
                 let y = data.map((x, index) => {
-                    if(x.startsWith("$")) {
+                    if (x.startsWith("$")) {
                         let bulkString = x + "\r\n" + data[index + 1] + "\r\n";
                         let str = this.serialize(bulkString);
                         parsed.push(str);
@@ -107,19 +77,16 @@ export class RESPSerializer {
 
             case 'Bulk Strings': {
                 let data = message.split("$")[1].split('\r\n');
-                if(this.isNull(data[0])) {
+                if (this.isNull(data[0])) {
                     return [null];
                 } else {
                     let parsed: string = "";
-                    if(data[0] === '0') return "";
-                    // console.log("Bulk String Data", data);
+                    if (data[0] === '0') return "";
                     data.forEach(x => {
-                        // If its a number, we can parse the next value
-                        if(!Number.isNaN(parseInt(x))) {
-                            // Access the next index and send it to the parsed array
+                        if (!Number.isNaN(parseInt(x))) {
                             let nextIndex = data.indexOf(x) + 1;
-                            if(!data[nextIndex]) return;
-                            if(data[nextIndex].length !== parseInt(x)) throw new Error("Invalid Bulk String: Length specified is not equal to the data length");
+                            if (!data[nextIndex]) return;
+                            if (data[nextIndex].length !== parseInt(x)) throw new Error("Invalid Bulk String: Length specified is not equal to the data length");
 
                             parsed = data[nextIndex];
                         }
@@ -132,73 +99,130 @@ export class RESPSerializer {
     }
 }
 
-// let serializer = new RESPSerializer();
-// [   
-//     "$-1\r\n", // DONE
-//     "*1\r\n$4\r\nping\r\n", // DONE
-//     "*2\r\n$4\r\necho\r\n$11\r\nhello world\r\n", // DONE
-//     "*2\r\n$3\r\nget\r\n$3\r\nkey\r\n",
-//     "+OK\r\n", // DONE
-//     "-Error message\r\n", // DONE
-//     "$0\r\n\r\n", // DONE
-//     "+hello world\r\n",
-//     "$4\r\nping\r\n", // DONE
+export class RESPEncoder {
 
-// ].forEach((message) => {
-//     console.log(serializer.serialize(message));
-// })
+    dataTypes: {
+        [key: string]: string
+    } = {
+            "Simple Strings": "+",
+            "Errors": "-",
+            "Integers": ":",
+            "Bulk Strings": "$",
+            "Arrays": "*",
+        };
+
+    dataType: string = "";
+
+    constructor() {}
+
+    encode(input: any, explicit?: any) {
+        switch (typeof input) {
+            case "string": {
+                this.dataType = this.dataTypes["Simple Strings"];
+                return `${this.dataType}${input}\r\n`;
+            }
+
+            case typeof Error: {
+                this.dataType = this.dataTypes["Errors"]
+            } break;
+
+            case "number": {
+                if(Number.isInteger(input)) {
+                    this.dataType = this.dataTypes["Integers"]
+                } else throw new Error("Must be integer")
+            } break;
+            
+            case "object": {
+                if(input == null || input == undefined) {
+                    return "$-1\r\n"
+                } else if(input instanceof Error) {
+                    this.dataType = this.dataTypes["Errors"]
+                    return `${this.dataType}${input.message}\r\n`;
+                } else if (Array.isArray(input) && input.every(x => typeof x === "string")) {
+                    this.dataType = explicit != null ? `${explicit}${input.length}\r\n` : this.dataTypes["Bulk Strings"]
+                    let str = "";
+                    str += this.dataType
+                    input.forEach(string => {
+                        str += `$${string.length}\r\n${string}\r\n`
+                    })
+                    return str;
+                } else throw new Error("Must be array of strings or array")
+            } break;
+
+            case null: {
+                return "$-1\r\n"
+            }
+
+            default: {
+                throw new Error("Type " + typeof input + " is unsupported.")
+            }
+        }
+    }
 
 
-// [ null ] = new RESPBuilder("Bulk Strings").
+}
 
 export class RESPBuilder {
 
     dataTypes: {
         [key: string]: string
     } = {
-        "Simple Strings": "+",
-        "Errors": "-",
-        "Integers": ":",
-        "Bulk Strings": "$",
-        "Arrays": "*",
-    };
+            "Simple Strings": "+",
+            "Errors": "-",
+            "Integers": ":",
+            "Bulk Strings": "$",
+            "Arrays": "*",
+        };
 
     dataType = "";
     length = 0;
     script = "";
 
     constructor(dataType: string) {
-        if(!dataType) throw new Error("Data Type is required");
+        if (!dataType) throw new Error("Data Type is required");
         this.dataType = dataType;
-        if(!Object.keys(this.dataTypes).includes(dataType)) throw new Error("Invalid Data Type");
+        if (!Object.keys(this.dataTypes).includes(dataType)) throw new Error("Invalid Data Type");
         this.script += this.dataTypes[dataType];
     }
 
+    setInteger(int: number) {
+        if (!["Integers"].includes(this.dataType)) throw new Error("Data type must be of \":\" / integer")
+        else if (!Number.isInteger(int)) throw new Error("Argument must be an integer")
+        else {
+            this.script += int + "\r\n"
+            return this;
+        }
+    }
+
     setLength(length: number) {
-        if(!length) throw new Error("Length is required");
-        if(!["Bulk Strings", "Arrays"].includes(this.dataType)) throw new Error("Length can only be set for Bulk Strings and Arrays");
+        if (!length) throw new Error("Length is required");
+        if (!["Bulk Strings", "Arrays"].includes(this.dataType)) throw new Error("Length can only be set for Bulk Strings and Arrays");
         this.length = length;
-        this.script += length + "\r\n";
+        if (length == -1) {
+            this.script = "$-1\r\n";
+            return this;
+        }
+        this.script += length.toString() + "\r\n";
         return this;
     }
 
     appendString(data: string) {
-        if(!data) throw new Error("Data is required");
-        if(this.dataType !== "Bulk Strings") throw new Error("Data can only be set for Bulk Strings");
+        if (!data) throw new Error("Data is required");
+        if (this.dataType !== "Bulk Strings") throw new Error("Data can only be set for Bulk Strings");
         this.script += "$" + data.length + "\r\n" + data + "\r\n";
         return this;
     }
 
     setMessage(data: string) {
-        if(!data) throw new Error("Data is required");
-        if(this.dataType !== "Simple Strings") throw new Error("Data can only be set for Simple Strings");
+        if (!data) throw new Error("Data is required");
+        if (this.dataType !== "Simple Strings") throw new Error("Data can only be set for Simple Strings");
         this.script += data + "\r\n";
         return this;
     }
 
     setError(data: string) {
-        if(!data) throw new Error("Data is required");
-        if(this.dataType !== "Errors") throw new Error("Data can only be set for Errors");
+        if (!data) throw new Error("Data is required");
+        if (this.dataType !== "Errors") throw new Error("Data can only be set for Errors");
         this.script += data + "\r\n";
         return this;
     }
